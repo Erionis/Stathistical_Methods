@@ -1,0 +1,103 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### 2. Dati Emissioni C02
+
+```{r}
+emissioni = read.table(file = "emissioni.csv")
+head(emissioni)
+
+dim(emissioni)
+```
+
+```{r}
+# siccome sono fortemente assimmetriche trasformo le variabili
+#trasformiamo le variabili
+emissioni$logCO2 = log(emissioni$co2)
+emissioni$logGDP = log(emissioni$gdp)
+emissioni$logGDPpc = log(emissioni$gdppc)
+emissioni$logPOP = log(emissioni$pop)
+```
+
+vogliamo spiegare le emissioni
+
+```{r}
+pairs(emissioni[, c("logCO2", "logPOP", "logGDP", "logGDPpc")])
+```
+
+```{r}
+#Modello 1: fitX
+fitX = lm(logCO2 ~ logPOP, data = emissioni)
+summary(fitX)
+plot(fitX, which=c(1,2))   #adattamento non ottimale
+```
+
+```{r}
+#identifichiamo i tre paesi con residui più alti in val assoluto
+resid(fitX)
+sort(abs(resid(fitX)))
+resid(fitX)[c(1,29,109)] # prendo i paesi che hanno emmisisoni piu basse
+# afgansta burundi e mali
+
+emissioni[c(1,29,109),] # tutti paesi con ricchezza pro-capite bassa
+
+plot(emissioni$logGDPpc, resid(fitX))
+```
+
+aggiungo allora anche la ricchezza procapite
+
+```{r}
+##Modello 2: includiamo la ricchezza pro-capite nel modello
+
+fitXV = lm(logCO2 ~ logPOP + logGDPpc, data = emissioni)
+summary(fitXV)
+
+#analisi dei residui
+plot(fitXV, which=c(1,2))
+```
+
+miglioramento gigante R=0.91
+
+```{r}
+#valutiamo l'andamento dei residui rispetto a x e v
+par(mfrow = c(1, 2))
+residui = resid(fitXV)
+plot(emissioni$logPOP, residui)
+plot(emissioni$logGDPpc, residui)
+
+```
+
+```{r}
+# Modello 3 
+fitXV2 = lm(logCO2 ~ logPOP + logGDPpc + I(logGDPpc^2), data = emissioni)
+summary(fitXV2)
+coeff<-coefficients(fitXV2)[c(3,4)]
+
+plot(fitXV2, which=c(1,2))
+
+curve(coeff[1] * x + coeff[2] * x^2, from = min(emissioni$logGDPpc),
+      to = max(emissioni$logGDPp))
+
+## le emissioni aumentano all'aumentare della ricchezza pc
+## ma con un tasso d'incremento decrescente
+## terziarizzazione delle economie più ricche
+```
+
+```{r}
+fitU = lm(logCO2 ~ logGDP, data = emissioni)
+summary(fitU)
+```
+
+```{r}
+fitXU = lm(logCO2 ~ logPOP + logGDP, data = emissioni)
+summary(fitXU)
+```
+
+```{r}
+# equiv a fitXV
+fitXUV = lm(logCO2 ~ logPOP + logGDP + I(logGDP^2), data = emissioni)
+summary(fitXUV)
+# equiv a fitXV2
+```

@@ -1,0 +1,800 @@
+---
+title: "Tipping Dataset"
+output:
+  pdf_document:
+    fig_width: 6.3
+    fig_height: 4.3
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+# Analisi Esplorativa dei dati
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(boot)
+library(car)
+library(ellipse)
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+library(RColorBrewer)
+library(GGally)
+library(cluster)
+```
+
+Il dataset in esame comprende 244 osservazioni effettuate da un cameriere riguardanti la mancia ricevuta durante un determinato periodo di tempo. È composto da due variabili quantitative, "*tip*" e "*total_bill*", e da quattro variabili categoriali, "*sex*", "*smoker*", "*day*" e "*time*", oltre alla variabile "*size*", che può essere interpretata sia come quantitativa che come categoriale.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+df = read.csv('tips.csv',stringsAsFactors = TRUE,header = TRUE)
+head(df)
+```
+
+```{r echo=FALSE, paged.print=TRUE}
+df.num = df[,c("tip","total_bill")]
+str(df)
+```
+
+```{r echo=FALSE}
+cat("The mean of tip is: ", mean(df$tip), "\n")
+cat("The mean of total_bill is: ", mean(df$total_bill), "\n")
+
+
+```
+
+```{r echo=FALSE}
+head(df[order(df$tip,df$total_bill,  decreasing = TRUE), ])
+
+```
+
+## **Analisi delle variabili categoriali**
+
+Cominciamo analizzando le variabili categoriali e la loro relazione con la variabile risposta "*tip*".
+
+```{r echo=FALSE}
+df.cat = df[, c("sex","smoker","day","time")]
+summary(df.cat)
+```
+
+```{r echo=FALSE}
+# Calcola la frequenza assoluta e relativa
+df_sex_freq <- as.data.frame(table(df$sex))
+df_sex_freq$rel_freq <- round(df_sex_freq$Freq / sum(df_sex_freq$Freq)*100)
+
+# Crea il grafico
+p1 = ggplot(df_sex_freq, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(rel_freq, '%')), 
+            position = position_stack(vjust = 0.5)) +
+  ggtitle("Sex") +
+  xlab("") +
+  ylab("Frequency") +
+  scale_fill_manual(values = c("grey", "lightblue")) +
+  theme(legend.position = "none")
+
+
+# Calcola la frequenza assoluta e relativa
+df_smoker_freq <- as.data.frame(table(df$smoker))
+df_smoker_freq$rel_freq <- round(df_smoker_freq$Freq / sum(df_smoker_freq$Freq)*100)
+
+# Crea il grafico
+p2 = ggplot(df_smoker_freq, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(rel_freq, '%')), 
+            position = position_stack(vjust = 0.5)) +
+  ggtitle("Smoker") +
+  xlab("") +
+  ylab("Frequency") +
+  scale_fill_manual(values = c("lightblue", "grey")) +
+  theme(legend.position = "none")
+
+# Calcola la frequenza assoluta e relativa
+df_time_freq <- as.data.frame(table(df$time))
+df_time_freq$rel_freq <- round(df_time_freq$Freq / sum(df_time_freq$Freq)*100)
+
+# Crea il grafico
+p3 = ggplot(df_time_freq, aes(x = Var1, y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(rel_freq, '%')), 
+            position = position_stack(vjust = 0.5)) +
+  ggtitle("Time") +
+  xlab("") +
+  ylab("Frequency") +
+  scale_fill_manual(values = c("lightblue", "grey")) +
+  theme(legend.position = "none")
+
+# Calcola la frequenza assoluta e relativa
+df_day_freq <- as.data.frame(table(df$day))
+df_day_freq$rel_freq <- round(df_day_freq$Freq / sum(df_day_freq$Freq)*100)
+
+# create a variable to store the order of days to show on the plots
+day_order <- c("Thur", "Fri", "Sat", "Sun")
+
+# Crea il grafico
+p4 = ggplot(df_day_freq, aes(x = factor(Var1, levels = day_order), y = Freq, fill = Var1)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(rel_freq, '%')), 
+            position = position_stack(vjust = 0.7)) +
+  ggtitle("Day") +
+  xlab("") +
+  ylab("Frequency") +
+  scale_fill_manual(values = c("grey", "lightblue", "grey", "grey")) +
+  theme(legend.position = "none")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2, widths = c(4, 4))
+
+
+```
+
+### **Tip vs Sex**
+
+Ci si chiede se il sesso di chi lascia la mancia influisce sull'importo della mancia.
+
+```{r echo=FALSE, fig.height=4}
+meanTip <- aggregate(df$tip, by = list(df$sex), FUN = "mean")
+
+names(meanTip) <- c("sex","tip")
+
+meanTip <- meanTip[ order(meanTip$tip) , ]
+
+meanTip$sex <- factor(meanTip$sex, levels = meanTip$sex)
+
+ggplot(data = meanTip, aes(x = tip, y = sex)) +
+    geom_bar(stat = "identity", fill = "Lightblue") +
+    geom_text(aes(label = paste0("$ ", round(tip,2))), hjust = -0.05) +
+    coord_cartesian(xlim = c(0,10)) +
+    labs(title = "Mean tip based on sex")
+```
+
+```{r echo=FALSE}
+# Esegui un test t tra la variabile risposta "tip" e la variabile categoriale "sex"
+t.test(tip ~ sex, data = df)
+```
+
+Il valore p è pari a 0.1378, quindi non c'è alcuna evidenza statistica per respingere l'ipotesi nulla che la differenza tra le medie dei due gruppi sia zero. In altre parole, non c'è alcuna differenza significativa tra la mancia media data dagli uomini e quella data dalle donne.
+
+**Tip vs Smoker**
+
+```{r echo=FALSE, fig.height=4}
+meanTip <- aggregate(df$tip, by = list(df$smoker), FUN = "mean")
+
+names(meanTip) <- c("smoker","tip")
+
+meanTip <- meanTip[ order(meanTip$tip) , ]
+
+meanTip$smoker <- factor(meanTip$smoker, levels = meanTip$smoker)
+
+ggplot(data = meanTip, aes(x = tip, y = smoker)) +
+    geom_bar(stat = "identity", fill = "Lightblue") +
+    geom_text(aes(label = paste0("$ ", round(tip,2))), hjust = -0.05) +
+    coord_cartesian(xlim = c(0,10)) +
+    labs(title = "Mean tip based on smoker")
+```
+
+```{r echo=FALSE, paged.print=FALSE}
+# Esegui un test t tra la variabile risposta "tip" e la variabile categoriale "sex"
+t.test(tip ~ smoker, data = df)
+```
+
+In questo caso le cose sono evidenti. Infatti anche intuitivamente si può supporre che l'essere fumatore o meno non debba avere alcuna influenza sull'importo della mancia.
+
+### **Tip vs Day**
+
+```{r echo=FALSE, fig.height=4}
+meanTip <- aggregate(df$tip, by = list(df$day), FUN = "mean")
+
+names(meanTip) <- c("day","tip")
+
+meanTip <- meanTip[ order(meanTip$tip) , ]
+
+meanTip$day <- factor(meanTip$day, levels = meanTip$day)
+
+ggplot(data = meanTip, aes(x = tip, y = day)) +
+    geom_bar(stat = "identity", fill = "Lightblue") +
+    geom_text(aes(label = paste0("$ ", round(tip,2))), hjust = -0.05) +
+    coord_cartesian(xlim = c(0,10)) +
+    labs(title = "Mean tip for each day")
+```
+
+```{r echo=FALSE}
+model <- aov(tip ~ day, data=df)
+summary(model)
+```
+
+Tramite l'analisi della varianza si nota che il valore p è 0.174, che è più grande di 0.05, quindi non si può rifiutare l'ipotesi nulla e non c'è evidenza sufficiente per dimostrare che ci sia una differenza significativa tra i valori medi di "tip" per i diversi giorni della settimana.
+
+### **Tip vs Time**
+
+```{r echo=FALSE, fig.height=4}
+meanTip <- aggregate(df$tip, by = list(df$time), FUN = "mean")
+
+names(meanTip) <- c("time","tip")
+
+meanTip <- meanTip[ order(meanTip$tip) , ]
+
+meanTip$time <- factor(meanTip$time, levels = meanTip$time)
+
+ggplot(data = meanTip, aes(x = tip, y = time)) +
+    geom_bar(stat = "identity", fill = "Lightblue") +
+    geom_text(aes(label = paste0("$ ", round(tip,2))), hjust = -0.05) +
+    coord_cartesian(xlim = c(0,10)) +
+    labs(title = "Mean tip based on time")
+```
+
+```{r echo=FALSE}
+t.test(tip ~ time, data = df)
+```
+
+Sembra che la mancia media sia significativamente diversa a cena e a pranzo.
+
+### **Tip vs Size**
+
+```{r echo=FALSE, fig.height=4, message=FALSE, warning=FALSE}
+freq_size <- table(df$size)
+meanTip <- aggregate(df$tip, by = list(df$size), FUN = "mean")
+
+names(meanTip) <- c("size","tip")
+
+#meanTip <- meanTip[ order(meanTip$tip) , ]
+
+meanTip$size <- factor(meanTip$size, levels = meanTip$size)
+
+#aggiungi una colonna che contiene le frequenze assolute di size
+meanTip$freq <- table(df$size)
+
+#posiziona le frequenze accanto a ogni barra
+ggplot(data = meanTip, aes(x = tip, y = size)) +
+    geom_bar(stat = "identity", fill = "Lightblue") +
+    geom_text(aes(label = paste0("$ ", round(tip,2))), hjust = -0.05) +
+    geom_text(aes(label = meanTip$freq), x = 0.5, hjust = 1, color = "darkblue") +
+    coord_cartesian(xlim = c(0,10)) +
+    labs(title = "Mean tip in each table size")
+
+
+```
+
+```{r echo=FALSE}
+model2 <- aov(tip ~ factor(size), data=df)
+summary(model2)
+```
+
+Questi risultati mostrano che esiste una relazione statisticamente significativa tra la dimensione del gruppo (numero di persone al tavolo) e la mancia data al cameriere.
+
+Sarà utile tenere conto di queste informazioni nella ricerca del modello di regressione lineare.
+
+### **Relazioni fra le variabili categoriali**
+
+Analizziamo le relazioni che possono intercorrere tra la variabile "*time*" e le altre variabili categoriali:
+
+```{r echo=FALSE}
+
+# plot number of tables per day, added in time too
+c1 = ggplot(df, aes(x = time, fill = sex)) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Time vs Sex") +
+  xlab("Time") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+c2 = ggplot(df, aes(x = time, fill = smoker)) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Time vs Smoker") +
+  xlab("Time") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+c3 = ggplot(df, aes(x = time, fill = day)) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Time vs Day") +
+  xlab("Time") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+c4 = ggplot(df, aes(x = time, fill = factor(size))) + 
+  geom_bar(position = "dodge") + 
+  ggtitle("Time vs table size") +
+  xlab("Time") +
+  ylab("Number of Tables")
+
+grid.arrange(c1, c2, c3, c4, ncol = 2, widths = c(4, 4))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+print(chisq.test(df$time, df$sex))
+
+print(chisq.test(df$time, df$smoker))
+
+print(chisq.test(df$time, df$time))
+
+print(chisq.test(df$time, df$day))
+
+```
+
+-   Sembra che gli uomini tendano a pagare di più a cena (ma questo non significa che lasceranno più mancia).
+
+-   Essere un fumatore non ha un impatto nella scelta tra pranzo o cena. Come si vede dalle proporzioni.
+
+-   Il giovedì si preferisce il pranzo, mentre nel weekend si preferisce la cena.
+
+-   A cena è più probabile trovare tavoli da 3 o più persone rispetto che a pranzo.
+
+Vediamo adesso la relazione tra la il numero di persone al tavolo e le altre variabili categoriali:
+
+```{r echo=FALSE}
+# create a variable to store the order of days to show on the plots
+day_order <- c("Thur", "Fri", "Sat", "Sun")
+
+
+# plot number of tables per day, added in time too
+d1 = ggplot(df, aes(x = factor(size), fill = sex )) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Size vs Sex") +
+  xlab("Size") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+d2 = ggplot(df, aes(x = factor(size), fill = smoker )) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Size vs Smoker") +
+  xlab("Size") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+d3 = ggplot(df, aes(x = factor(size), fill = time)) + 
+  geom_bar(position = "dodge") + 
+  #scale_fill_manual(values = c("#eb8060", "lightblue")) +
+  ggtitle("Size vs Time") +
+  xlab("Size") +
+  ylab("Number of Tables")
+
+# plot number of tables per day, added in time too
+d4 = ggplot(df, aes(x = factor(size), fill = day)) + 
+  geom_bar(position = "dodge") + 
+  ggtitle("Size vs Day") +
+  xlab("Size") +
+  ylab("Number of Tables")
+
+grid.arrange(d1, d2, d3, d4, ncol = 2, widths = c(4, 4))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+print(chisq.test(df$size, df$sex))
+
+print(chisq.test(df$size, df$smoker))
+
+print(chisq.test(df$size, df$time))
+
+print(chisq.test(df$size, df$day))
+```
+
+-   E' semplice intuire che il sesso e l'essere fumatori o meno non abbiano alcuna influenza sulla scelta del tavolo.
+
+-   Mentre sembra che si preferisca scegliere i tavoli da due persone a cena.
+
+-   Sembra esserci una relazione tra la grandezza del tavolo e il giorno della settimana.
+
+## **Analisi delle variabili qualitative**
+
+Continuiamo l'analisi osservando la distribuzione delle variabili quantitative del dataset e la loro correlazione:
+
+```{r echo=FALSE}
+ggpairs(df.num,
+            aes(alpha = 0.5))
+
+```
+
+E' facile intuire che la mancia debba essere correlata positivamente con il conto, ma anche con la grandezza del tavolo.
+
+### **Distribuzione di tip e log(tip)**
+
+Analizziamo la distribuzione della variabile risposta e di una sua eventuale trasformazione logaritmica.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+b1 = ggplot(df, aes(x = "", y = tip)) +
+  geom_boxplot(width = 0.4, colour="darkblue", fill="lightblue") +
+  geom_jitter( colour="#eb8060", 
+              width = 0.1, size = 1) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + 
+  labs(x = NULL)
+
+b2 =ggplot(df, aes(x=tip)) + 
+ geom_histogram(aes(y=..density..), colour="darkblue", fill="lightblue")+
+ geom_density(alpha=.2, fill="#FF6666") 
+
+
+b3 = ggplot(df, aes(x = "", y = log(tip))) +
+  geom_boxplot(width = 0.4, colour="darkblue", fill="lightblue") +
+  geom_jitter( colour="#eb8060", 
+              width = 0.1, size = 1) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + 
+  labs(x = NULL)
+
+b4 =ggplot(df, aes(x=log(tip))) + 
+ geom_histogram(aes(y=..density..), colour="darkblue", fill="lightblue")+
+ geom_density(alpha=.2, fill="#FF6666") 
+
+grid.arrange(b1, b2, b3, b4, ncol = 2, widths = c(4, 4))
+```
+
+### **Distribuzione di total_bill e log(total_bill)**
+
+Analizziamo la distribuzione di "*total_bill*", la variabile qualitativa maggiormente correlata alla variabile risposta.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+b1 = ggplot(df, aes(x = "", y = total_bill)) +
+  geom_boxplot(width = 0.4, colour="darkblue", fill="lightblue") +
+  geom_jitter( colour="#eb8060", 
+              width = 0.1, size = 1) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + 
+  labs(x = NULL)
+
+b2 =ggplot(df, aes(x=total_bill)) + 
+ geom_histogram(aes(y=..density..), colour="darkblue", fill="lightblue")+
+ geom_density(alpha=.2, fill="#FF6666") 
+
+
+b3 = ggplot(df, aes(x = "", y = log(total_bill))) +
+  geom_boxplot(width = 0.4, colour="darkblue", fill="lightblue") +
+  geom_jitter( colour="#eb8060", 
+              width = 0.1, size = 1) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + 
+  labs(x = NULL)
+
+b4 =ggplot(df, aes(x=log(total_bill))) + 
+ geom_histogram(aes(y=..density..), colour="darkblue", fill="lightblue")+
+ geom_density(alpha=.2, fill="#FF6666") 
+
+grid.arrange(b1, b2, b3, b4, ncol = 2, widths = c(4, 4))
+```
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+#lunghezza
+qqnorm(df$tip, ylab = "Tip")
+qqline(df$tip)
+#lunghezza
+qqnorm(log(df$tip), ylab = "Log(Tip)")
+qqline(log(df$tip))
+
+#lunghezza
+qqnorm(df$total_bill, ylab = "Total_bill")
+qqline(df$total_bill)
+#lunghezza
+qqnorm(log(df$total_bill), ylab = "Log(Total_bill)")
+qqline(log(df$total_bill))
+```
+
+Sembra ragionevole prendere in considerazione una trasformazione logaritmica delle variabili "*tip*" e "*total_bill*", anche se ciò potrebbe comportare ad una perdita in termini di interpretabilità.
+
+# **Modelli di regressione lineare multipla**
+
+Creiamo innanzitutto un semplice modello di regressione lineare tra mancia e conto da pagare. Data la correlazione ci si aspetta un coefficiente angolare positivo.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point( alpha=0.4) + geom_smooth(method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+```{r echo=FALSE}
+fit0 = lm( tip ~ total_bill, data = df)
+summary(fit0)
+
+```
+
+-   Per ogni dollaro in più sul conto la mancia aumenta di 10 centesimi.
+
+-   L'errore standard è relativamente contenuto.
+
+-   Possiamo scartare l'ipotesi di nullità del coefficiente legato alla variabile "*total_bill".*
+
+-   Con solamente la variabile "*total_bill*" riusciamo a spiegare il 45% della variabilità di "*tip*".
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(fit0)
+```
+
+Si nota come la linearità dei residui sia sufficientemente soddisfatta, mentre la normalità sembra perdersi nelle code della distribuzione dei residui. Inoltre sembra esserci una certa correlazione tra i residui e i valori teorici.
+
+Esaminiamo il contributo che potrebbe portare l'aggiunta di un'altra variabile al modello, considerando le informazioni che abbiamo ottenuto dall'analisi univariata e bivariata delle variabili esplicative.
+
+### Effetto del sesso sulla relazione tra mancia e conto pagato
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point(alpha=0.4) + geom_smooth(aes(colour=sex),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+-   IL grafico suggerisce che gli uomini tendano a pagare meno mancia delle donne fino a 20\$.
+
+```{r echo=FALSE}
+fit_sex = lm( tip ~ total_bill + sex, data = df)
+summary(fit_sex)
+
+```
+
+-   Il sesso non influisce sulla relazione tra mancia e conto pagato, e non aggiunge informazione al modello
+
+### Effetto dell'essere un fumatore sulla relazione tra mancia e conto pagato
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point(alpha=0.4) + geom_smooth(aes(colour=smoker),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+-   Sembra che i fumatori paghino meno mancia per conti superiori a 20\$.
+
+```{r echo=FALSE}
+fit_smoker = lm( tip ~ total_bill + smoker, data = df)
+summary(fit_smoker)
+```
+
+-   Il coefficiente di regressione per i fumatori è di -0.148924, il che significa che se una persona è un fumatore ci si aspetta che la mancia sia inferiore di 0.148924 rispetto a un non un fumatore. Tuttavia, questo coefficiente ha un P-value relativamente elevato di 0.272, il che suggerisce che questa relazione non sia significativa e possa essere dovuta al caso.
+
+### **Effetto di time sulla relazione tra mancia e conto pagato**
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point(alpha=0.4) + geom_smooth(aes(colour=time),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+-   Sembra che all'aumentare del conto a pranzo si lasci più mancia
+
+```{r echo=FALSE}
+fit_time = lm( tip ~ total_bill + time, data = df)
+summary(fit_time)
+```
+
+-   Ma anche questo effetto non sembra essere significativo.
+
+### Effetto del giorno sulla relazione tra mancia e conto pagato
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point(alpha=0.4) + geom_smooth(aes(colour=day),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+```{r echo=FALSE}
+fit_day = lm( tip ~ total_bill + day, data = df)
+summary(fit_day)
+```
+
+-   Il giorno della settimana non ha un effetto statisticamente significativo.
+
+### Effetto delle dimensioni del tavolo sulla relazione tra mancia e conto pagato
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip), data=df) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=factor(size)),method = "lm", se=F) +
+  theme_gray(base_size = 14) # da mettere sotto
+```
+
+-   I tavoli da 5 e 6 persone tendono a lasciare meno mancia all'aumentare dello scontrino
+-   I tavoli che lasciano più mancia in media sono quelli da 3 e 4 persone.
+
+```{r echo=FALSE}
+fit_size = lm( tip ~ total_bill +  size, data = df)
+summary(fit_size)
+```
+
+-   per ogni aumento di 1 dollaro sul conto, la mancia aumenterà di 9 centesimi. E per ogni persona in più al tavolo, la mancia aumenterà di 19 centesimi a parità di scontrino.
+
+-   Si può concludere che il numero di persone al tavolo è statisticamente significativo e che il 46,79% della varianza della mancia può essere spiegata da questo modello.
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(fit_size)
+```
+
+Considerando le informazioni dedotte dal dataset si ritiene che le variabili esplicative "*total_bill*" e "*size*" siano le uniche che diano un contributo significativo nel prevedere la mancia.
+
+## **AIC**
+
+Vediamo se si possono migliorare i risultati con un approccio automatico per la ricerca delle variabili più significative. Si decide di considerare inizialmente un modello che include tutte le variabili.
+
+```{r}
+fitA = lm( tip ~ ., data = df)
+summary(fitA)
+```
+
+```{r}
+require(MASS)
+fitB = stepAIC(fitA, direction = "both")
+```
+
+```{r echo=FALSE}
+summary(fitB)
+```
+
+Si è giunti alla stessa conclusione del modello dedotto in precedenza.
+
+## **Trasformazione logaritmica**
+
+Proviamo ad applicare una trasformazione logaritmica:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=log(total_bill), y=log(tip)), data=df) + 
+  geom_point( alpha=0.4) + geom_smooth(method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+```{r echo=FALSE}
+fitlog = lm( log(tip) ~ log(total_bill), data = df)
+summary(fitlog)
+```
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+plot(fitlog)
+```
+
+-   La percentuale di variabilità spiegata è leggermente migliorata
+
+-   L'analisi dei residui è soddisfacente
+
+Analizziamo anche la relazione con "*size*" includendola nel modello:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+ggplot(mapping = aes(x=log(total_bill), y=log(tip)), data=df) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=factor(size)),method = "lm", se=F) +
+  theme_gray(base_size = 14) # da mettere sotto
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+fitlog_size = lm( log(tip) ~ log(total_bill) + size , data = df)
+summary(fitlog_size)
+par(mfrow=c(2,2))
+plot(fitlog_size)
+```
+
+-   In conclusione abbiamo migliorato leggermente il modello in termini di variabilità spiegata e analisi dei residui, ma abbiamo perso in interpretabilità pratica dei coefficienti del modello.
+
+## **AIC**
+
+```{r echo=FALSE}
+dflog = df
+dflog$tip = log(df$tip)
+dflog$total_bill = log(df$total_bill)
+names(dflog) = c( "log_total_bill", "log_tip", "sex", "smoker","day","time","size")
+```
+
+```{r}
+fitlogA = lm( log_tip ~ ., data = dflog)
+summary(fitlogA)
+```
+
+```{r include=FALSE}
+require(MASS)
+fitlogB = stepAIC(fitlogA, direction = "both")
+```
+
+```{r echo=FALSE}
+summary(fitlogB)
+
+```
+
+# **E se considerassi la mancia percentuale?**
+
+Ha senso chiedersi come varia la mancia in termini percentuali rispetto al conto pagato, e se in questo caso si riscontra una tendenza diversa rispetto al modello precedente.
+
+```{r echo=FALSE}
+mydata = df
+mydata$size = factor(mydata$size)
+mydata['tip_perc'] = mydata['tip']/mydata['total_bill']
+mydata = mydata[, -which(names(mydata) == "tip")]
+
+head(mydata)
+```
+
+```{r echo=FALSE}
+head(mydata[order(mydata$tip_perc, mydata$total_bill, decreasing = TRUE), ])
+```
+
+-   Sono presenti degli outlier che possono essere dei punti leva per il modello. Si può pensare di toglierli successivamente.
+
+Analizziamo la distribuzione della variabile risposta:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+b1 = ggplot(mydata, aes(x = "", y = tip_perc)) +
+  geom_boxplot(width = 0.4, colour="darkblue", fill="lightblue") +
+  geom_jitter( colour="#eb8060", 
+              width = 0.1, size = 1) +
+  scale_color_manual(values = c("#00AFBB", "#E7B800")) + 
+  labs(x = NULL)
+
+b2 =ggplot(mydata, aes(x=tip_perc)) + 
+ geom_histogram(aes(y=..density..), colour="darkblue", fill="lightblue")+
+ geom_density(alpha=.2, fill="#FF6666") 
+
+
+grid.arrange(b1, b2, ncol = 2, widths = c(4, 4))
+```
+
+Analizziamo la relazione tra mancia percentuale e conto pagato:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(method = "lm", se=T) +
+  theme_gray(base_size = 14)
+```
+
+-   C'è una correlazione NEGATIVA: all'aumentare del conto da pagare diminuisce la mancia percentuale per il cameriere.
+
+```{r echo=FALSE}
+fitperc = lm( tip_perc ~ total_bill, data = mydata)
+summary(fitperc)
+par(mfrow=c(2,2))
+plot(fitperc)
+```
+
+-   Per ogni dollaro in più possiamo sostenere che la mancia diminuisca del 2%
+
+-   La variabilità spiegata dal modello è molto bassa. Circa l'89% della variabilità dipende da altri fattori.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+f1=ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=sex),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+
+f2=ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=smoker),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+
+f3=ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=day),method = "lm", se=F) +
+  theme_gray(base_size = 14)
+
+f4=ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=time),method = "lm", se=T) +
+  theme_gray(base_size = 14)
+
+grid.arrange(f1, f2, f3, f4, ncol = 2, widths = c(4, 4))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(mapping = aes(x=total_bill, y=tip_perc), data=mydata) + 
+  geom_point( alpha=0.4) + geom_smooth(aes(colour=size),method = "lm", se=F) +
+  theme_gray(base_size = 14)
+```
+
+Usiamo un approccio automatico per la ricerca delle variabili esplicative cdi cui disponiamo per provare a spiegare meglio la varianza della mancia.
+
+```{r}
+fitpercA = lm( tip_perc ~ ., data = mydata)
+summary(fitpercA)
+```
+
+```{r include=FALSE}
+fitpercB = stepAIC(fitpercA, direction = "both")
+```
+
+```{r echo=FALSE}
+summary(fitpercB)
+par(mfrow=c(2,2))
+plot(fitpercB)
+```
+
+A parte la relazione tra mancia percentuale e conto da pagare, non sembra esserci un contributo significativo delle altre variabili. Il numero di persone al tavolo non sembra influire sulla mancia percentuale.
+
+## **Conclusioni:**
+
+-   Le variabili scelte per creare il dataset non sembrano molto utili per spiegare il comportamento di questo fenomeno. Probabilmente una scelta di variabili più legate al servizio del cameriere o del ristorante avrebbero potuto dare un contributo maggiore.
+
+-   L' importo della mancia dipende da quanta gente c'è al tavolo e da quanto spendono come era logico immaginare.
+
+-   Le persone lasciano meno mancia in percentuale all'aumentare dello scontrino.
+
+-   In base alle informazioni ottenute dai dati, il cameriere deve sperare che si presentino più tavoli da 3 e 4 persone perché in termini di frequenza e mancia media sono i più profittevoli per il cameriere.

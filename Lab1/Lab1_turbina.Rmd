@@ -1,0 +1,106 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+turbina=read.table("windmill.dat",sep="",header=TRUE)
+turbina
+
+```
+
+```{r}
+#diagramma di dispersione
+plot(turbina$wind,turbina$dc)#stimiamo il modello di regressione lineare
+```
+
+## stimiamo il modello di regressione lineare
+
+```{r}
+fit=lm(dc ~ wind, data = turbina)
+summary(fit)
+```
+
+```{r}
+#estraiamo singole informazioni
+summary(fit)$r.squared    
+summary(fit)$coefficients 
+```
+
+```{r}
+plot(turbina$wind, turbina$dc)
+abline(summary(fit)$coefficients[1,1],
+       summary(fit)$coefficients[2,1])
+```
+
+### Procediamo con l'analisi dei residui del modello
+
+LINEARITA'
+
+```{r}
+res.st=rstandard(fit)
+plot(fitted(fit),res.st)
+abline(h=0)
+
+```
+
+```{r}
+fit.rec=lm(dc~I(1/wind),data=turbina)
+
+fit.rad=lm(dc~sqrt(wind),data=turbina)
+
+fit.log=lm(dc~log(wind),data=turbina)
+
+fit.rr=lm(dc~I(1/sqrt(wind)),data=turbina)
+```
+
+### Analisi dei residui dei modelli alternativi 
+
+```{r}
+par(mfrow=c(1,2))
+
+#modello1
+plot(fitted(fit.rec),rstandard(fit.rec))
+abline(h=0)
+
+qqnorm(r.st)
+qqline(r.st)
+
+#modello2
+plot(fitted(fit.rad),rstandard(fit.rad))
+abline(h=0)
+
+qqnorm(r.st)
+qqline(r.st)
+
+#modello3
+plot(fitted(fit.log),rstandard(fit.log))
+abline(h=0)
+
+qqnorm(r.st)
+qqline(r.st)
+
+#modello4
+plot(fitted(fit.rr),rstandard(fit.rr))
+abline(h=0)
+
+qqnorm(r.st)
+qqline(r.st)
+
+summary(fit.rr)
+
+```
+
+```{r}
+#grafico del modello stimato
+
+par(mfrow=c(1,1))
+plot(turbina$wind,turbina$dc)
+curve(predict(fit.rr,newdata=data.frame(wind=x)),
+      add=TRUE,col=2)
+```
+
+```{r}
+
+```

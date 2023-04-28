@@ -1,0 +1,131 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+d=read.table(file="auto.csv",sep="\t",dec=",")
+dim(d)
+head(d)
+```
+
+```{r}
+plot(d$potenzacv,d$accel)
+identify(d$potenzacv,d$accel,row.names(d)) #permette di identificare subito i valori anomali
+```
+
+### modello lineare
+
+ci aspettiamo che all'umentare della potenza il tempo di accelrezione della macchina diminuisca. Ma possiamo gia intuire che non è lineare.
+
+```{r}
+fit0=lm(accel~potenzacv,data=d)
+summary(fit0)
+```
+
+### Grafici residui
+
+```{r}
+#residui studentizzati 
+residui=rstandard(fit0)
+par(mfrow=c(1,2))
+
+#Grafico dei residui contro i valori teorici
+plot(fitted(fit0),residui)
+abline(h=0)
+
+#Nornal Q-Q plot
+qqnorm(residui)
+qqline(residui)
+```
+
+```{r}
+#oppure chiamando plot() con argomento l'0ggetto lm
+
+par(mfrow=c(1,2))
+plot(fit0, which=c(1,2))
+```
+
+### Applichiamo diverse trasformazioni alla variabile esplicativa
+
+per vedere se riusciamo a migliorare le cose
+
+```{r}
+#Applichiamo diverse trasformazioni alla variabile esplicativa
+
+plot(log(d$potenzacv),d$accel) # logaritmo
+cor(log(d$potenzacv),d$accel)
+
+plot(sqrt(d$potenzacv),d$accel)  # radice quadrata
+cor(sqrt(d$potenzacv),d$accel)
+
+plot(1/(d$potenzacv),d$accel) # inverso
+cor(1/(d$potenzacv),d$accel)
+
+plot(1/sqrt(d$potenzacv),d$accel) # inverso della radice quadrata
+cor(1/sqrt(d$potenzacv),d$accel)
+```
+
+```{r}
+#Analizziamo i quattro modelli
+
+fitlog=lm(accel~log(potenzacv),data=d)
+
+fitsqrt=lm(accel~sqrt(potenzacv),data=d)
+
+fitrec=lm(accel~I(1/(potenzacv)),data=d) # I serve per applicare la formula direttamente qui
+
+fitrecsqrt=lm(accel~I(1/sqrt(potenzacv)),data=d)
+```
+
+```{r}
+#Analisi dei residui 
+par(mfrow=c(1,2))
+#modello 1
+plot(fitlog,which=c(1,2))
+#modello 2
+plot(fitsqrt,which=c(1,2))
+#modello 3
+plot(fitrec,which=c(1,2))
+#modello 4
+plot(fitrecsqrt,which=c(1,2))
+```
+
+il quarto sembra interessante
+
+```{r}
+summary(fitrecsqrt)
+```
+
+R2 è migliorato. Abbiamo migliorato la linearità ma sembra esserci ancora qualche discrepanza sulla normalità
+
+```{r}
+#definiamo un nuovo dataframe
+dim(d)
+nuovidati=data.frame(potenzacv=seq(min(d$potenzacv),max(d$potenzacv),length=200))
+```
+
+```{r}
+#IC per E(Y|X=x0)
+A=predict(fitrecsqrt,newdata=nuovidati,interval="confidence")
+```
+
+```{r}
+#intervallo di previsione per Y0=Y|X=x0
+B=predict(fitrecsqrt,newdata=nuovidati,interval="prediction")
+```
+
+```{r}
+#plottiamo dati e intervalli
+matplot(nuovidati,cbind(A,B[ ,-1]), lty=c(1,3,3,2,2), type="l", 
+        col=c("black","red","red","blue","blue"))
+points(d$potenzacv,d$accel)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```

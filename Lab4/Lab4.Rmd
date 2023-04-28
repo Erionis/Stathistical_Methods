@@ -1,0 +1,181 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+---
+title: "Lab4- Selezione del Modello"
+output: html_document
+date: "2022-11-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ellipse)
+library(MASS)
+library(leaps)
+```
+
+## Dati sul Crimine in USA
+
+### Analisi esplorativa
+
+Il dataset in UScrime.dat contiene alcune statistiche demografiche e sociali per 47 stati americani nel 1960. Tra questi, il tasso di criminalità, inteso come numero di crimini denunciati per milione di abitanti. Obiettivo dell'analisi è investigare la relazione tra tasso di criminalità e caratteristiche socio-demografiche degli stati.
+
+Carichiamo i dati e guardiamo le prime righe della matrice. Otteniamo alcune statistiche univariate per le diverse variabili e notiamo che tutte le variabili sono numeriche e non ci sono valori mancanti. La variabile sud assume valori 0-1, potrebbe essere codificata come factor. Il 34% circa degli stati è del sud.
+
+```{r}
+USC = read.table("UScrime.dat", header = TRUE)
+head(USC)
+summary(USC)
+```
+
+Rappresentiamo graficamente la distribuzione univariata delle variabili a disposizione escludendo la variabile sud. Quando il range delle variabili è molto diverso, per ottenere una rappresentazione più chiara è opportuno utilizzare un grafico per ogni variabile (nel codice di seguito tramite ciclo for).
+
+La variabile risposta y, ma non solo, ha una distribuzione asimmetrica.
+
+```{r}
+par(mar = c(2, 5, 1, 1))
+stripchart(USC[,-3], method = "jitter", las = 1)
+
+par(mfrow = c(4, 3), mar = c(1, 2, 3, 2))
+for (i in c(1, 2, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14)) {
+stripchart(USC[, i], main = names(USC)[i], 
+           vertical = TRUE, method = "jitter")
+}
+```
+
+Osserviamo la distribuzione congiunta delle variabili calcolando e rappresentando graficamente la matrice di correlazione. Le variabili esplicative maggiormente legate alla risposta sono spesaps0, spesaps1 e patrimonio.
+
+Notiamo inoltre forte correlazione tra le variabili le coppie (spesaps0, spesaps1), (patrimonio, poverta), (patrimonio, spesaps0) e quindi (patrimonio, spesaps1).
+
+```{r}
+options(width = 120)
+round(cor(USC), 2)
+plotcorr(cor(USC))
+```
+
+## Modello lineare
+
+### Multicollinearità
+
+Inserendo ad esempio la prima coppia in un modello di regressione lineare porta ad avere multicollinearità: la presenza di entrambe le variabili porta ad avere risultati incoerenti (se prese singolarmente, entrambi i coefficienti risultano positivi e significativi; se incluse entrambe, alcuni coefficienti cambiano segno, gli standard error e la significatività aumenta e diminuisce, rispettivamente).
+
+Si osserva un fenomeno simile con la coppia (patrimonio, poverta): entrambe le variabili hanno un coefficiente significativamente diverso da zero nel modello che le include entrambe e le stime delle varianze sono elevate.
+
+```{r}
+
+
+#Il modello fit0 considera solo 'spesaps0' 
+#(spesa pc per la polizia 1960)
+fit0 = lm(y ~ spesaps0, data = USC)
+summary(fit0)
+#Il modello fit0 considera solo 'spesaps0' 
+fit1 = lm(y ~ spesaps1, data = USC)
+summary(fit1)
+
+#Il modello fit0 considera entrambe 
+#le variabili esplicative
+fit01 = lm(y ~ spesaps0 + spesaps1, data = USC)
+summary(fit01)
+
+#Stime coefficienti modello
+coef(summary(lm(y ~ spesaps0, data = USC)))
+coef(summary(lm(y ~ spesaps1, data = USC)))
+coef(summary(lm(y ~ spesaps0 + spesaps1, data = USC)))
+
+#Stime coefficienti modello
+coef(summary(lm(y ~ patrimonio, data = USC)))
+coef(summary(lm(y ~ poverta, data = USC)))
+coef(summary(lm(y ~ patrimonio + poverta, data = USC)))
+```
+
+Non essendo scontato che nella fase di selezione delle variabili i problemi di multicollinearità si risolvano da sé (cioè che nel modello finale non compaiano variabili fortemente correlate), può convenire eliminarne una preventivamente, per ridurre la dimensionalità del problema.
+
+Occorre poi riflettere sull'inserimento nel modello delle variabili spesaps0 o spesaps1: esse pongono un problema di interpretazione. Si nota dai modelli stimati sopra che un modello con spesapsX come esplicativa è significativo e si adatta anche piuttosto bene alle osservazioni.
+
+Se tuttavia lo scopo è quello di individuare i fattori sociali ed economici che influenzano la criminalità, la presenza della spesa per pubblica sicurezza ha poco senso: essa è verosimilmente una conseguenza del livello di criminalità e non una determinante.
+
+La sua presenza nel modello potrebbe mascherare l'effetto di vere determinanti, appare quindi sensato stimare il modello escludendo sia spesaps0 che spesaps1. Creiamo allora un nuovo data frame escludendo spesaps0 e spesaps1.
+
+```{r}
+#nuovo data frame: escludiamo spesaps0, spesaps1
+USC.rid =USC[, -c(5, 6)]
+head(USC.rid)
+```
+
+Stimiamo un primo modello con tutte le variabili, si noti che questo si esprime con la formula y\~., R costruirà un modello che include y come risposta e tutte le variabili presenti nel data.frame di riferimento come esplicative).
+
+```{r}
+#Stimiamo modello che include tutte le variabili
+fitA = lm(y ~ ., data = USC.rid)
+summary(fitA)
+```
+
+Diversi coeffi cienti, ma non tutti, risultano significativamente diversi da zero.
+
+L'analisi dei residui non mostra evidenti incompatibilità con le ipotesi del modello.
+
+```{r}
+plot(fitA, which=c(1,2))
+```
+
+Selezioniamo il miglior sottoinsieme di variabili secondo il criterio AIC (notiamo che abbiamo 2048 possibili modelli = $2^11$), utilizzando il metodo della stetwise regression basato su una esplorazione non esaustiva dello spazio dei modelli.
+
+```{r}
+#######Stepwise regression
+fitB = stepAIC(fitA, direction = "both")
+```
+
+Il modello selezionato risulta essere il seguente, i coefficienti risultano statisticamente significativi tranne quello di maschi e popolazione. La percentuale di variabilità spiegata dal modello è del 53.7%.
+
+```{r}
+#summary del modello selezionato
+summary(fitB)
+```
+
+Notiamo la presenza delle coppie (disocc1, disocc2) e (patrimonio, poverta) che, come si è già commentato, sono fortemente correlate, è perciò opportuno valutare i modelli che escludono una variabile da ogni coppia.
+
+```{r}
+plot(fitB, which=c(1,2))
+```
+
+In questo caso eliminiamo disocc2 e poverta e applichiamo nuovamente il metodo di stepAIC per la selezione.
+
+```{r}
+#eliminiamo disocc2 e poverta fortemente correlate con disocc1 e patrimonio
+USC.rid = USC.rid[, -c(10, 12)]
+
+#Stimiamo nuovamente il modello completo
+fitC = lm(y ~ ., data = USC.rid)
+summary(fitC)
+
+#Stepwise regression sul nuovo data frame
+fitD = stepAIC(fitC, direction = "both")
+```
+
+In questo caso quindi si ottiene un modello con 4 variabili esplicative: maschi, popolazione, nonbianchi e patrimonio. I coefficienti risultano tutti significativi e con segno positivo. Le variabili hanno quindi un effetto positivo sul tasso di criminalità. La percentuale di variabilità spiegata da questo modello è del 38.2%.
+
+```{r}
+summary(fitD)
+```
+
+Proviamo a ragionare nell'altro senso, partendo dal modello con la sola intercetta e avviando a partire da questo la selezione (dobbiamo in questo caso specificare nel comando step lo scope cioè l'insieme delle variabili tra cui pescare per le aggiunte e eliminazioni). Arriviamo a selezionare lo stesso modello, ma questo non è scontato.
+
+```{r}
+#Stepwise with no variables
+fitE = lm(y ~ 1, data = USC.rid)
+fitE
+fitF = stepAIC(fitE, scope = formula(fitC), direction = "both")
+summary(fitF)
+```
+
+```{r}
+plot(fitF, which=c(1,2))
+par(mfrow=c(2,2))
+plot(USC.rid$maschi,resid(fitF))
+plot(USC.rid$patrimonio,resid(fitF))
+plot(USC.rid$nonbianchi,resid(fitF))
+plot(USC.rid$pop,resid(fitF))
+```

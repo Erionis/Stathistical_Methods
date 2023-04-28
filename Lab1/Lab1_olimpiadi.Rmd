@@ -1,0 +1,327 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# 1. La regressione semplice 
+
+```{r}
+#Acquisizione dei dati
+d=read.table(file = "olimpiadi100m.csv", sep = ",", header = TRUE)
+is(d) # per sapere cos'è il file
+head(d)  # per vedere la testa
+
+```
+
+```{r}
+#Studiamo la relazione esistente tra il tempo di percorrenza e l'anno
+x = d$Anno  # salvo l'anno come x
+y = d$Risultato  # salvo il risultato come y
+x
+y
+n = length(x)   # salvo il numero del camione
+n
+```
+
+```{r}
+#### stime dei minimi quadrati dei coefficienti 
+#stima del coefficiente angolare 
+# ho due formule per calcolarla
+beta2.stima = (sum(x * y)/n - mean(x) * mean(y))/(mean(x^2) - mean(x)^2)
+
+beta2.stima = cov(x, y)/var(x)
+
+beta2.stima
+```
+
+```{r}
+#sima dell'intercetta
+beta1.stima = mean(y) - beta2.stima * mean(x)
+beta1.stima
+```
+
+```{r}
+#retta stimata con abline()
+#visualizziamo l'help 
+?abline
+plot(x, y) 
+abline(beta1.stima, beta2.stima)
+```
+
+```{r}
+#Otteniamo i valori teorici
+y.teorici = beta1.stima + beta2.stima * x
+```
+
+```{r}
+#aggiungiamo i valori teorici sul grafico yhat
+plot(x, y) 
+abline(beta1.stima, beta2.stima)
+points(x, y.teorici, pch = 4)
+```
+
+```{r}
+#otteniamo i residui del modello
+residui = y - y.teorici
+```
+
+```{r}
+#proprietà algebriche
+sum(residui)  # deve fare 0
+sum(residui * x) # deve fare  0
+sum(residui * y.teorici) # deve fare 0
+
+```
+
+## Scomposizione della devianza
+
+```{r}
+#devianza totale
+devtot = sum((y - mean(y))^2)
+#devianza spiegata 
+devsp = sum((y.teorici - mean(y))^2)
+#devianza residua
+devres = sum((y - y.teorici)^2)
+
+devsp + devres
+```
+
+```{r}
+#coefficiente di determinazione R2
+
+R2 = 1 - devres/devtot
+R2
+
+#oppure
+devsp/devtot
+```
+
+### Stima della varianza della distribuzione degli errori
+
+```{r}
+sigma2.stima = sum(residui^2)/n  # distorto
+
+#stima non distorta
+
+s2 = sigma2.stima * n/(n - 2)
+
+#Stime delle varianze degli stimatori 
+
+var.beta2.stima = s2/sum((x - mean(x))^2) 
+
+var.beta1.stima = s2 * (1/n + mean(x)^2/sum((x - mean(x))^2))
+```
+
+```{r}
+###IC per beta2 al 95% Stima +o- STD ERROR
+
+beta2.inf = beta2.stima - qt(0.975, df = n - 2) * sqrt(var.beta2.stima)
+beta2.sup = beta2.stima + qt(0.975, df = n - 2) * sqrt(var.beta2.stima)
+
+c(beta2.inf,beta2.sup)
+```
+
+```{r}
+# lo stesso intervallo si ottiene anche con:
+beta2.ic2 = beta2.stima + c(-1, 1) * qt(0.975, df = n - 2) * sqrt(var.beta2.stima)
+beta2.ic3 = beta2.stima + qt(c(0.025, 0.975), df = n - 2) * sqrt(var.beta2.stima)
+beta2.ic2
+beta2.ic3
+```
+
+### Verifica dell'ipotesi di nullità di beta2
+
+```{r}
+t2 = beta2.stima/sqrt(var.beta2.stima) # la statistica pivot
+t2
+```
+
+```{r}
+#Calcoliamo la previsione per la successiva olimpiade (2012)
+
+t.2012 = beta1.stima + beta2.stima * 2012
+t.2012
+
+#intervallo di confidenza al 95% per la stima di E(Y|X=2012)
+
+t.2012.ic = t.2012 + c(-1, 1) * qt(0.975, n - 2) * 
+  sqrt(s2 * (1/n + (2012-mean(x))^2/sum((x - mean(x))^2)))
+t.2012.ic
+
+#intervallo di previsione al 95% per Y0=Y|X=2012
+
+t.2012.iprev = t.2012 + c(-1, 1) * qt(0.975, n - 2) * 
+  sqrt(s2 * (1 + 1/n + (2012 - mean(x))^2/sum((x - mean(x))^2)))
+t.2012.iprev
+```
+
+tutto questo si può dare con lm()
+
+## 2. La regressione semplice con la funzione lm()
+
+```{r}
+#Utilizziamo la funzione lm()
+?lm
+fit = lm(y ~ x) 
+fit
+
+
+```
+
+```{r}
+
+fit$coefficients
+fit$residuals
+fit$fitted.values
+```
+
+```{r}
+#oppure
+coef(fit)
+resid(fit)
+fitted(fit)
+```
+
+```{r}
+summary(fit)
+```
+
+```{r}
+#memorizziamo il risultato di summary()
+fit.sum = summary(fit)
+names(fit.sum)
+
+fit.sum$coefficients
+#l'errore standard di beta2.stima è
+fit.sum$coefficients[2, 2]
+
+#R^2
+fit.sum$r.squared
+```
+
+```{r}
+#Intervalli di confidenza per i parametri
+
+help(confint)
+
+#default: 95%
+confint(fit)
+
+#IC di livello 0.99
+confint(fit, "x", level = 0.99)
+confint(fit, "(Intercept)", level = 0.99)
+```
+
+```{r}
+#Previsioni in corrispondenza a arbitrari valori di x
+help(predict.lm)
+
+#default: valori teorici
+predict(fit)   
+predict(fit, se.fit = TRUE)
+predict(fit, se.fit = FALSE, interval = "confidence", level = 0.95)
+```
+
+posso anche passar nuovi dati al modello su cui fare le prevsioni
+
+```{r}
+#Definiamo un nuovo data frame
+dati.nuovi = data.frame(x = seq(1896, 2016, by = 4))
+dati.nuovi
+
+#IC per E(Y|X=x)
+#default level is .95
+prev.ic = predict(fit, newdata = dati.nuovi, interval = "confidence")
+prev.ic
+
+#Int. previsione per Y0=(Y|X=x)
+prev.iprev = predict(fit, newdata = dati.nuovi, interval = "prediction")
+prev.iprev
+```
+
+```{r}
+## diagramma di dispersione
+plot(x, y, xlim = range(dati.nuovi$x), ylim = range(prev.iprev))
+matlines(dati.nuovi$x, prev.ic, lty = c(1, 2, 2), col = "black")
+#prev.iprev[, -1] esclude la colonna 'fit'
+matlines(dati.nuovi$x, prev.iprev[, -1], lty = c(2, 2), col = "red")
+```
+
+## 3.Analisi dei residui 
+
+```{r}
+#visualizziamo l'oggetto 'residui'
+residui
+```
+
+```{r}
+#residui standardizzati
+res.std=residui/sqrt((1-1/n-(x-mean(x))^2/sum((x-mean(x))^2)))
+res.std
+
+##residui studentizzati
+res.st=residui/sqrt(s2*(1-1/n-(x-mean(x))^2/sum((x-mean(x))^2)))
+res.st
+#o utilizzando la funzione rstandard()
+res.st=rstandard(fit)
+res.st
+```
+
+```{r}
+#diagramma di dispersione dei residui
+par(mfrow=c(1,3))
+
+plot(x,residui) # x vs residui normali
+abline(h=0)
+plot(x,res.std) # x vs residui standardizzati
+abline(h=0)
+plot(x,res.st) # x vs residui studentizzati
+abline(h=0)
+
+```
+
+```{r}
+#boxplot dei residui 
+# possiamo vedere anche com'è la simmetria dei residui col boxplot
+
+par(mfrow=c(1,3))
+
+boxplot(residui)
+boxplot(res.std)
+boxplot(res.st)
+```
+
+a parte il valore anomalo sembr abb simmetrico
+
+```{r}
+#dENSITà-ISTOGRAMMA non vien utimlizzato
+par(mfrow=c(1,2))
+hist(res.std,freq=FALSE)
+curve(dnorm(x,0,sd=sqrt(s2)),add=TRUE,col="red")
+hist(res.st,freq=FALSE)
+curve(dnorm(x,0,sd=1),add=TRUE,col="red")
+```
+
+viene piu usato il quantile-quantile. Piu i punti si dispongono sulla bisettrice piu vuol dire che i residui sono normali
+
+```{r}
+#diagramma dei quantili osservati contro i quantili teorici
+plot(qnorm((1:27-.5)/n),sort(res.std))
+xcord<-qnorm(c(0.25,0.75))
+ycord<-quantile(res.std,c(0.25,0.75))
+slope <- diff(ycord)/diff(xcord)
+int <- ycord[1] - slope * xcord[1]
+abline(int,slope)
+```
+
+```{r}
+# posso anche usare queste funzioni
+#usiamo le funzioni qqnorm() e qqline()
+
+par(mfrow=c(1,2))
+qqnorm(res.std)
+qqline(res.std)
+
+qqnorm(res.st)
+qqline(res.st)
+```

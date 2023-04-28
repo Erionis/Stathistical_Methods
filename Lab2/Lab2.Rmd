@@ -1,0 +1,380 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-01-31"
+
+####################################################################
+
+## 2. Il principio del campionamento ripetuto
+
+###################################################################
+
+#FdR Normale 
+#standardizzata
+curve(pnorm,from=-5,to=5, n=100, ylab=expression(P(X<=x))) 
+#media 2 e varianza 0.7^2
+curve(pnorm(x,mean=2,sd=0.7), add=TRUE,col=2)  
+#media 0, varianza 0.7^2
+points(seq(-5,5,0.1), pnorm(seq(-5,5,0.1), mean=0, sd=0.7), 
+       type="l", col=3) 
+
+#confrontiamo le funzioni di densità
+curve(dnorm, from=-5, to=5, n=100, ylim=c(0,.6), ylab="f(x)") 
+curve(dnorm(x, mean=2, sd=0.7), add=TRUE,col=2) 
+curve(dnorm(x, mean=0, sd=0.7), add=TRUE,col=3) 
+
+##generare un campione casuale (iid) di 100 unità da N(0,1)
+par(mfrow=c(1,3))
+
+# Genero il campione
+xx = rnorm(100, mean=0, sd=1)
+# disegno l'istogramma delle freq relative 
+hist(xx, prob=TRUE, ylim=c(0,0.5), main=" ", ylab="densità")
+#sovrappongo la densit?
+curve(dnorm(x), add=TRUE, col=2)
+#boxplot e grafico quantili
+boxplot(xx)
+qqnorm(xx)
+qqline(xx)
+#media 2 e sd 0.8
+xx = rnorm(100, mean = 2, sd = 0.8)
+par(mfrow = c(1, 3))
+hist(xx, prob = TRUE,  main="", ylab="densità")
+curve(dnorm(x,2,0.8), add = TRUE, col = 2)
+boxplot(xx)
+qqnorm(xx)
+qqline(xx)
+
+####Distribuzione esponenziale
+
+par(mfrow = c(1, 2))
+curve(dexp(x, 1), from = 0, to = 8, ylab="f(x)")
+curve(dexp(x, 2), add = TRUE, col = "red")
+curve(dexp(x, 0.5), add = TRUE, col = "blue")
+
+curve(pexp(x, 1), from = 0, to = 8, ylab="F(x)")
+curve(pexp(x, 2), add = TRUE, col = "red")
+curve(pexp(x, 0.5), add = TRUE, col = "blue")
+
+
+#simuliamo da un'esponenziale di parametro=2
+z = rexp(20, 2)
+z
+
+#ppoints() fornisce le frequenze cumulate del campione ordinato (n>=10)
+ppoints(z)
+
+#per verificare l'adattamento ad una distribuzione diversa
+#dalla normale occorre utilizzare la funzione qqplot() 
+qqplot(qexp(ppoints(z), 2), sort(z))
+abline(0, 1)
+
+
+###############################################################
+##Distribuzione campionaria della media di un campione normale
+################################################################
+
+#1. osserviamo un campione
+n = 20
+campione = rnorm(n, mean = 1, sd = 0.7)
+campione
+
+#2. calcoliamo le stime
+media.camp=mean(campione)
+media.camp
+
+var.camp=sum((campione-media.camp)^2)/(n-1)
+var.camp
+
+var.camp.nc=sum((campione-media.camp)^2)/n
+var.camp.nc
+
+
+#MC inizializzazione
+N=1000 ## fissiamo il numero di campioni
+medie = vector("numeric", length = N)  ##vettore delle medie
+
+#MC replicazioni
+for (i in 1:N) {
+  campione = rnorm(n, mean = 1, sd = 0.7)
+  medie[i] = mean(campione)
+}
+
+
+par(mfrow = c(1, 2))
+#istogramma-densità
+hist(medie, freq = FALSE)
+curve(dnorm(x, 1, 0.7/sqrt(n)), add = TRUE, col=6, lwd=2)
+#diagramma quantili
+qqnorm(medie)
+abline(1, 0.7/sqrt(n), col=2)
+
+
+
+### Distribuzione campionaria della varianza
+
+N = 1000
+## fissiamo il numero di campioni
+varianze = vector("numeric", length = N)
+for (i in 1:N) {
+  campione = rnorm(n, mean = 1, sd = 0.7)
+  varianze[i] = sum((campione - mean(campione))^2)/(n - 1)
+}
+
+par(mfrow = c(1, 2))
+hist(varianze, freq = FALSE,ylim=c(0,3))
+curve((n/0.49) * dchisq(x * n/0.49, df = n - 1), 
+      add = TRUE, col="red")
+
+z = n * varianze/0.49
+qqplot(qchisq(ppoints(z), n - 1), sort(z))
+abline(0, 1); qqline(z, distribution = function(p) qchisq(p, df = n-1), col="blue")
+
+
+#####Distribuzione della media campionaria 
+#per un campione non normale (TLC)
+
+## fissiamo il numero di campioni
+N = 1000
+#simuliamo n dati da una gamma(a,b)
+n = 10
+a = 1
+b = 2
+medie = vector("numeric", length = N)
+for (i in 1:N) {
+  campione = rgamma(n, shape = a, rate = b)
+  medie[i] = mean(campione)
+}
+
+
+hist(medie, freq = FALSE)
+curve(dnorm(x, a/b, sqrt((a/b^2)/n)), add = TRUE)
+qqnorm(medie)
+abline(a/b, sqrt((a/b^2)/n))
+
+###Distribuzione delle stime dei coefficienti 
+#nel modello di regressione lineare semplice 
+#beta1=5, beta2=3, sigma2=16
+
+n = 30
+x = 1:n
+error = rnorm(n, mean = 0, sd = 4)
+y = 5 + 3 * x + error
+plot(x, y)
+
+## Otteniamo le stime di beta_r
+beta2.hat <- cov(x,y)/var(x)
+beta2.hat
+beta1.hat <- mean(y) - beta2.hat*mean(x)
+beta1.hat
+
+N = 1000
+n = 30
+x = 1:n
+beta2.hat.sim = vector("numeric", length = N)
+beta1.hat.sim = vector("numeric", length = N)
+for (i in 1:N) {
+  error = rnorm(n, mean = 0, sd = 4)
+  y = 5 + 3 * x + error
+  beta2.hat.sim[i] = cov(y, x)/var(x)
+  beta1.hat.sim[i] = mean(y) - beta2.hat.sim[i] * mean(x)
+}
+
+var.beta2.hat = 4^2/sum((x - mean(x))^2)
+var.beta2.hat
+
+#distribuzione empirica delle stime ottenute sui campioni simulati
+mean(beta2.hat.sim)
+var(beta2.hat.sim)
+
+#confronto grafico
+hist(beta2.hat.sim, prob = TRUE)
+curve(dnorm(x, mean = 3, sd = sqrt(var.beta2.hat)), add = TRUE)
+
+
+#rappresentiamo sul grafico le N rette stimate
+plot(x, y)
+for (i in 1:N) {
+  abline(beta1.hat.sim[i], beta2.hat.sim[i], col = "gray")
+}
+points(x, y, pch = 20)
+abline(5, 3, col = "red")
+
+####Intervallo di confidenza per beta_2
+# calcolo i residui
+residui = y - beta1.hat - beta2.hat * x
+# calcolo la stima corretta di sigma^2
+s2 = sum(residui^2)/(n - 2)
+# calcolo la varianza dello stimatore di beta2
+var.beta2.hat = s2/sum((x - mean(x))^2)
+# calcolo estremo inferiore dell'intervallo
+beta2.lower = beta2.hat - qt(0.975, n - 2) * sqrt(var.beta2.hat)
+# calcolo estremo superiore dell'intervallo
+beta2.upper = beta2.hat + qt(0.975, n - 2) * sqrt(var.beta2.hat)
+
+#livello di copertura effettivo dell'IC 
+
+##inizializzo la matrice che conterrà gli intervalli
+beta2.ic = matrix(NA, ncol = 2, nrow = 1000)
+print("Inizio")
+for (i in 1:1000) {
+  #print(i)
+  error = rnorm(30, mean = 0, sd = 4)
+  y = 5 + 3 * x + error
+  beta2.hat = cov(x, y)/var(x)
+  beta1.hat = mean(y) - beta2.hat * mean(x)
+  residui = y - beta1.hat - beta2.hat * x
+  s2 = sum(residui^2)/(n - 2)
+  var.beta2.hat = s2/sum((x - mean(x))^2)
+  beta2.lower = beta2.hat - qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  beta2.upper = beta2.hat + qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  ## memorizzo l'estremo inferiore
+  beta2.ic[i, 1] = beta2.lower
+  ## memorizzo l'estremo superiore
+  beta2.ic[i, 2] = beta2.upper
+}
+print("Fine")
+
+#livello di copertura effettivo (stima le livello di copertura nominale .95)
+mean((beta2.ic[, 1] <= 3) & (beta2.ic[, 2] >= 3)) 
+##Grafico per i primi 100 intervalli simulati 
+plot(1:100, beta2.ic[1:100, 1], ylim = c(2.5, 3.5),
+     ylab = "beta2")
+points(1:100, beta2.ic[1:100, 2])
+segments(1:100, beta2.ic[1:100, 2], 1:100, 
+         beta2.ic[1:100, 1])
+abline(h = 3, col = 2)
+
+#########################################################
+#Verifica d'ipotesi H0: beta2=0
+##########################################################
+rifiuto = vector("logical", N) #corrispondente empirico del livello di significatività
+livalfa = 0.05
+n = 30
+x = 1:n
+for (i in 1:N) {
+  error = rnorm(n, mean = 0, sd = 4)
+  ## simulo nell'ipotesi H0 !!!!
+  y = 1 + error
+  beta2.hat = cov(x, y)/var(x)
+  beta1.hat = mean(y) - beta2.hat * mean(x)
+  residui = y - beta1.hat - beta2.hat * x
+  s2 = sum(residui^2)/(n - 2)
+  var.beta2.hat = s2/sum((x - mean(x))^2)
+  ## calcolo la statistica t2
+  t2 = beta2.hat/sqrt(var.beta2.hat)
+  ## decido se rifiutare (TRUE=rifiuto)
+  rifiuto[i] = (abs(t2) > qt(1 - livalfa/2, n - 2))
+}
+mean(rifiuto)   #tasso di rifiuto
+
+##Potenza del test rispetto a H1: beta2= 0.1
+N = 1000
+rifiuto = vector("logical", N)
+n = 30
+x = 1:n
+beta2.alt = 0.1
+for (i in 1:N) {
+  error = rnorm(n, mean = 0, sd = 4)
+  ## simulo nell'ipotesi H1: sarebbe corretto rifiutare
+  y = 1 + beta2.alt * x + error
+  beta2.hat = cov(x, y)/var(x)
+  beta1.hat = mean(y) - beta2.hat * mean(x)
+  residui = y - beta1.hat - beta2.hat * x
+  s2 = sum(residui^2)/(n - 2)
+  var.beta2.hat = s2/sum((x - mean(x))^2)
+  t2 = beta2.hat/sqrt(var.beta2.hat)
+  rifiuto[i] = (abs(t2) > qt(1 - livalfa/2, n - 2))
+}
+mean(rifiuto) # rifiuto H0 quando è H0 è falsa
+
+###Funzione potenza del test (come sopra ma per diversi valori beta2alt)
+N = 1000
+livalfa = 0.05
+n = 30
+x = 1:n
+beta2.alt.seq = seq(0, 0.5, length = 20)
+rifiuto = matrix(NA, nrow = N, ncol = length(beta2.alt.seq))
+#ciclo su beta2
+for (j in 1:length(beta2.alt.seq)) {
+  #ciclo su N
+  for (i in 1:N) {
+    error = rnorm(n, mean = 0, sd = 4)
+    ## simulazione sotto H1
+    y = 1 + beta2.alt.seq[j] * x + error
+    beta2.hat = cov(x, y)/var(x)
+    beta1.hat = mean(y) - beta2.hat * mean(x)
+    residui = y - beta1.hat - beta2.hat * x
+    s2 = sum(residui^2)/(n - 2)
+    var.beta2.hat = s2/sum((x - mean(x))^2)
+    t2 = beta2.hat/sqrt(var.beta2.hat)
+    rifiuto[i, j] = (abs(t2) > qt(1 - livalfa/2, n - 2))
+  }
+}
+
+plot(beta2.alt.seq, apply(rifiuto, 2, mean), 
+     ylab=expression(pi(beta[2])), xlab=expression(beta[2]))
+
+
+#Livello di copertura o di significativit? effettivi
+#quando l'ipotesi di normalità non è rispettata
+
+N = 10000
+beta2.ic = matrix(NA, ncol = 2, nrow = N)
+beta2.hat.sim = rep(NA, N)
+beta1.hat.sim = rep(NA, N)
+coperto = vector("numeric", length = N)
+n = 10
+beta2 = 5
+x = (1:n)/n
+
+for (i in 1:N) {
+  #error=rt(n,df=1)
+  error=5*(rchisq(n,1)-1)
+  y = 5 + beta2 * x + error
+  beta2.hat.sim[i] = cov(x, y)/var(x)
+  beta1.hat.sim[i] = mean(y) - beta2.hat.sim[i] * mean(x)
+  residui = y - beta1.hat.sim[i] - beta2.hat.sim[i] * x
+  s2 = sum(residui^2)/(n - 2)
+  var.beta2.hat = s2/sum((x - mean(x))^2)
+  beta2.lower = beta2.hat.sim[i] - qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  beta2.upper = beta2.hat.sim[i] + qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  beta2.ic[i, 1] = beta2.lower
+  beta2.ic[i, 2] = beta2.upper
+  coperto[i] = (beta2.lower < beta2) & (beta2.upper > beta2)
+}
+
+mean(beta2.hat.sim)
+var(beta2.hat.sim)
+mean(coperto)
+
+
+#errori non omoschedastici
+N = 10000
+beta2.ic = matrix(NA, ncol = 2, nrow = N)
+beta2.hat.sim = rep(NA, N)
+beta1.hat.sim = rep(NA, N)
+coperto = vector("numeric", length = N)
+n = 30
+beta2 = 5
+x = (1:n)/n
+
+for (i in 1:N) {
+  ## sd=xi
+  error = rnorm(n, mean = 0, sd = x)
+  y = 5 + beta2 * x + error
+  beta2.hat.sim[i] = cov(x, y)/var(x)
+  beta1.hat.sim[i] = mean(y) - beta2.hat.sim[i] * mean(x)
+  residui = y - beta1.hat.sim[i] - beta2.hat.sim[i] * x
+  s2 = sum(residui^2)/(n - 2)
+  var.beta2.hat = s2/sum((x - mean(x))^2)
+  beta2.lower = beta2.hat.sim[i] - qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  beta2.upper = beta2.hat.sim[i] + qt(0.975, n - 2) * sqrt(var.beta2.hat)
+  beta2.ic[i, 1] = beta2.lower
+  beta2.ic[i, 2] = beta2.upper
+  coperto[i] = (beta2.lower < beta2) & (beta2.upper > beta2)
+}
+mean(beta2.hat.sim)
+var(beta2.hat.sim)
+mean(coperto)
+

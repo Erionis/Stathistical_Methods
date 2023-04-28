@@ -1,0 +1,250 @@
+---
+title: "La regressione multipla "
+output: html_notebook
+---
+
+# La regressione multipla 
+
+vogliamo spiegare l'accelerazione Y tramite la potenza in cavalli X. MA in questo dataset abbiamo anche la massa come variabile in piu che posso usare.
+
+```{r}
+# 1. Dati sulle automobili
+
+d=read.table(file="auto2.csv",sep="\t",header=TRUE,dec=",")
+head(d)
+dim(d)
+```
+
+```{r}
+## matrice di diagrammi di dispersione
+
+pairs(d)
+```
+
+```{r}
+library(PerformanceAnalytics)
+
+```
+
+```{r}
+# o questo
+chart.Correlation(d)
+```
+
+Con questo grafico qua sopra ho un'idea della distribuzione univariata delle variabili: (considerazioni da fare all'esame)
+
+-   la potenza non sembra simmetrica, mentre acc e massa lo sembrano di più
+
+### Modello regressione semplice 
+
+noi possiamo applicare delle TRASFORMAZIONI DI SCALA ai dati per farle fittare con le ipotesi di liearità!
+
+```{r}
+# Modello regressione semplice con esplicativa (potenzacv) trasformata
+fitrecsqrt=lm(accel~I(1/sqrt(potenzacv)),data=d)
+summary(fitrecsqrt)
+```
+
+inserimao entrambe. sia massa che potenza nel modello fit0
+
+```{r}
+##Stimiamo un modello lineare con lm()
+
+fit0 = lm(accel ~ potenzacv + massa, data=d)
+summary(fit0)
+summary(fit0)$coefficients
+```
+
+vediamo che sia la potenza che la massa hanno coeff negativo! questo è un campanello d'allarme perchè noi ci aspettiamo che il tempo di accelerazione aumenti all'aumentare della massa!
+
+```{r}
+#grafici residui modello lineare
+plot(fit0, which=c(1,2))
+```
+
+```{r}
+fit1 = lm(accel ~ I(1/sqrt(potenzacv)) + massa, data = d)
+
+summary(fit1)
+plot(fit1, which=c(1,2))
+```
+
+possiamo confrontare i due modelli:
+
+```{r}
+##Confronto fra il modello ridotto (fitrecsqrt) e 
+#il modello completo (fit1)
+
+anova(fitrecsqrt, fit1)
+```
+
+```{r}
+# In alternativa
+
+#Foss: [(RSS-RSS0)/(p-p0)]/[RSS/(n-p)] ~ F(p-p0,n-p)
+pf(97.5,3-2,189-3, lower.tail = F)
+
+#in alternativa...
+X = cbind(1, 1/sqrt(d$potenzacv), d$massa) # prima colonna è intercetta
+y = d$accel
+
+X0 = X[, 1:2]
+#calcoliamo la somma dei quadrati degli scarti
+P0 = X0 %*% solve(t(X0) %*% X0) %*% t(X0)
+y0.hat = P0 %*% y       #valori teorici
+e0 = y - y0.hat
+
+#statistica F 
+Foss = (t(e0) %*% e0 - t(e) %*% e)/(t(e) %*% e/(nrow(X) - 3))
+valorep = 1 - pf(Foss, 1, nrow(X) - 3)   #valore p
+```
+
+per fare anova i modelli devono essere annidati!ù
+
+### Rappresentazione del modello
+
+```{r}
+#diagramma di dispersione
+
+plot(d$accel, fitted(fit1)) # per mostrare la retta!
+abline(0, 1)
+
+
+```
+
+```{r}
+# non molto utili
+plot(d$potenzacv, d$accel)
+
+curve(predict(fit1, newdata = data.frame(potenzacv = x, 
+                                         massa = mean(d$massa))), add = TRUE)
+pred = predict(fit1)
+points(d$potenzacv, pred, pch = "-", col = "red")
+
+plot(d$massa, d$accel)
+
+curve(predict(fit1, newdata = data.frame(potenzacv = mean(d$potenzacv),
+                                         massa = x)), add = TRUE)
+pred = predict(fit1)
+points(d$massa, pred, pch = "-", col = "red")
+```
+
+```{r}
+plot(fit1)
+
+```
+
+```{r}
+# posso fare altri due modelli lineari
+# accelerazione spiegata dalla potenza
+fitYX = lm(accel ~ I(1/sqrt(potenzacv)), data = d) #coincide con fitrecsqrt
+# massa spiegata dalla potenza
+fitVX = lm(massa ~ I(1/sqrt(potenzacv)), data = d)
+```
+
+```{r}
+plot(resid(fitYX) ~ resid(fitVX))
+abline(h = 0, lty = 2)
+abline(v = 0, lty = 2)
+abline(lm(resid(fitYX) ~ resid(fitVX)))
+```
+
+facciamo un modello tra i residui di fitYX e i residui di fitVX
+
+```{r}
+summary(lm(resid(fitYX) ~ resid(fitVX##
+```
+
+## Calcoli in fomra matriciale
+
+```{r}
+### Stima di beta
+d=read.table(file="auto2.csv",sep="\t",header=TRUE,dec=",")
+X = cbind(1, 1/sqrt(d$potenzacv), d$massa)
+
+y = d$accel
+
+XTX = t(X) %*% X       # X^TX
+invXTX = solve(XTX)    #inversione di matrice
+beta.hat = invXTX %*% t(X) %*% y #or: solve(XTX,t(X)%*%y)
+```
+
+```{r}
+#valori teorici
+y.hat = X %*% beta.hat
+head(y.hat)
+dim(y.hat)
+
+```
+
+```{r}
+#residui
+e = y - y.hat
+#stima di s2
+s2 = t(e) %*% e/(nrow(X) - 2)
+#matrice di varianza e covarianza
+vcov = as.double(s2) * invXTX
+
+se = sqrt(diag(vcov))
+
+#summary(fit1)$cov.unscaled
+```
+
+## Modello di regressione multipla per la stima di una regressione polinomiale
+
+```{r}
+#secondo grado
+fitpolin2 = lm(accel ~ potenzacv + I(potenzacv^2), data = d)
+summary(fitpolin2)    #modello non soddisfacente
+```
+
+```{r}
+plot(fitpolin2, which=c(1,2))
+```
+
+non abbiamo ancora risolto la linearità, perchè sembra esserci un pattern. per il QQplot le code sono ancora pesanti.
+
+```{r}
+#terzo grado
+fitpolin3 = update(fitpolin2, . ~ . + I(potenzacv^3))
+summary(fitpolin3)
+```
+
+R migliora. li confronto graficamente
+
+```{r}
+#confronto modelli
+plot(d$accel ~ d$potenzacv)
+curve(predict(fitrecsqrt, data.frame(potenzacv = x)), 
+      add = TRUE, col = "blue")
+curve(predict(fitpolin2, data.frame(potenzacv = x)), 
+      add = TRUE, col = "red")
+curve(predict(fitpolin3, data.frame(potenzacv = x)),
+      add = TRUE, col = "black")
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+```{r}
+curve(predict(fit1, newdata = data.frame(potenzacv = x, 
+                                         massa = mean(d$massa))), add = TRUE)
+```
+
+```{r}
+pred = predict(fit1)
+points(d$potenzacv, pred, pch = "-", col = "red")
+```
